@@ -3,6 +3,7 @@ from tkinter import filedialog, ttk, messagebox
 import pandas as pd
 import sqlite3
 import os
+import glob
 from PIL import ImageTk, Image
 import numpy as np
 
@@ -16,10 +17,6 @@ def popupmsg(message):
     # Create a window
     popup = tk.Tk()
 
-    # Define function to exit window:
-    def leavemini():
-        popup.destroy()
-
     # Set window title:
     popup.wm_title("!")
 
@@ -28,7 +25,7 @@ def popupmsg(message):
     label.pack(side="top", fill="x", pady=10)
 
     # Set button
-    B1 = ttk.Button(popup, text="Ok", command=leavemini)
+    B1 = ttk.Button(popup, text="Ok", command=popup.destroy)
     B1.pack()
 
     # Initiate callback loop
@@ -81,6 +78,9 @@ class InsectDataBaseApp(tk.Tk):
         # Show the start page with show_frame method
         self.show_frame(StartPage)
 
+        # Connecting to the database:
+        self.connect_data_base()
+
     def show_frame(self, cont):
         """
         This method just brings whatever page we want to the front, i.e. shows it
@@ -95,31 +95,85 @@ class InsectDataBaseApp(tk.Tk):
         # Creating the event for other processes:
         frame.event_generate("<<ShowFrame>>")
 
-    def load_data_base(self):
-        # Selecting the database to load with browser
-        self.database_file = filedialog.askopenfilename()
+    def connect_data_base(self):
+        """
+        This function connects to the database if it exists:
+        :return:
+        """
 
-        # Creating the name of the table in the database:
-        self.sql_table_name = "Collection"
+        # Listing the files in directory and checking whether there are databases:
+        databases_list = []
+        for file in os.listdir("."):
+            if file.endswith(".db"):
+                databases_list.append(file)
 
-        self.conn = sqlite3.connect(self.database_file)
-        self.c = self.conn.cursor()
+        # Checking whether there is a data base:
+        if len(databases_list) == 0:  # If there is no existing database, the user must select a file to create one:
+            tk.messagebox.showwarning(title=None, message="There is more than 1 database existing, please select one!")
+            self.show_frame(CreateDataBasePage)
+        elif len(databases_list) == 1:
+            self.database_file = databases_list[0]
+            # Creating the name of the table in the database:
+            self.sql_table_name = "Insects"
 
-        # Creating the query:
-        query = 'SELECT * FROM {}'.format(self.sql_table_name)
+            self.conn = sqlite3.connect(self.database_file)
+            self.c = self.conn.cursor()
 
-        # Executing query to get all the column names
-        self.c.execute(query)
+            # Creating the query:
+            query = 'SELECT * FROM {}'.format(self.sql_table_name)
 
-        # Listing the column names:
-        self.database_column = [description[0] for description in self.c.description]
+            # Executing query to get all the column names
+            self.c.execute(query)
 
-    def create_data_base(self):
+            # Listing the column names:
+            self.database_column = [description[0] for description in self.c.description]
+        elif len(databases_list) > 1:
+
+            # Informing user that there is more than one database:
+            tk.messagebox.showwarning(title=None, message="There is more than 1 database existing, please select one!")
+
+            # Selecting the database to load with browser
+            self.database_file = filedialog.askopenfilename()
+
+            # Creating the name of the table in the database:
+            self.sql_table_name = "Insects"
+
+            self.conn = sqlite3.connect(self.database_file)
+            self.c = self.conn.cursor()
+
+            # Creating the query:
+            query = 'SELECT * FROM {}'.format(self.sql_table_name)
+
+            # Executing query to get all the column names
+            self.c.execute(query)
+
+            # Listing the column names:
+            self.database_column = [description[0] for description in self.c.description]
+
+    def create_data_base_from_excel(self):
         # Selecting the database to load with browser
         excel_file = filedialog.askopenfilename()
 
+        correct_format = 0
+
+        # Looping until the correct file format is selected:
+        while correct_format != 1:
+            # If the file format isn't supported by read_excel from pandas
+            if not excel_file.endswith(".xls") or excel_file.endswith(".xlsx") \
+                    or excel_file.endswith(".xlsm") or excel_file.endswith(".xlsb") \
+                    or excel_file.endswith(".odf") or excel_file.endswith(".pdt") or excel_file.endswith(".csv"):
+                # Showing a warning box and asking the user to select a new one:
+                tk.messagebox.showwarning(title=None,
+                                          message="This file format isn't accepted, please selected another file!")
+                excel_file = filedialog.askopenfilename()
+            else: # If the format is correct, while loop can be terminated:
+                correct_format = 1
+
         # Loading the excel file
-        excel_dataframe = pd.read_excel(excel_file, engine='openpyxl')
+        if excel_file.endswith(".csv"):
+            excel_dataframe = pd.read_csv(excel_file, sep=',')
+        else:
+            excel_dataframe = pd.read_excel(excel_file, engine='openpyxl')
 
         # Converting all the strings to lower case to avoid non-consistency issues:
         for column in excel_dataframe:
@@ -129,11 +183,19 @@ class InsectDataBaseApp(tk.Tk):
             except:
                 print("This column cannot be converted to lower case")
 
+        # Removing the spaces in the column names by underscores:
+        excel_dataframe.columns = excel_dataframe.columns.str.replace(' ', '_')
+        # Replacing all the potential weird characters in column names by underscores:
+        excel_dataframe.columns = excel_dataframe.columns.str.replace('.', '_')
+        excel_dataframe.columns = excel_dataframe.columns.str.replace(':', '_')
+        excel_dataframe.columns = excel_dataframe.columns.str.replace('-', '_')
+        excel_dataframe.columns = excel_dataframe.columns.str.replace('&', 'AND')
+
         # Creating the name of the data base:
-        self.database_file = os.path.splitext(excel_file)[0] + ".db"
+        self.database_file = "Insects_database.db"
 
         # Creating the name of the table in the database:
-        self.sql_table_name = "Collection"
+        self.sql_table_name = "Insects"
 
         # Create connection to memory:
         cnx = sqlite3.connect(self.database_file)
@@ -230,8 +292,8 @@ class CreateDataBasePage(tk.Frame):
                                                command=lambda: controller.show_frame(StartPage))
         create_data_base_page_button = ttk.Button(self, text="Create database from excel",
                                                   command=lambda: controller.create_data_base())
-        explore_data_base_page_button = ttk.Button(self, text="Back to start page",
-                                                   command=lambda: controller.update_frame(ExploreDataBase))
+        explore_data_base_page_button = ttk.Button(self, text="Explore database",
+                                                   command=lambda: controller.show_frame(ExploreDataBase))
 
         back_to_start_page_button.grid(row=1, column=0)
         create_data_base_page_button.grid(row=2, column=0)
@@ -284,7 +346,7 @@ class ExpandDataBasePage(tk.Frame):
 
         back_to_start_page_button = ttk.Button(self, text="Back to start page",
                                                command=lambda: controller.show_frame(StartPage))
-        explore_data_base_page_button = ttk.Button(self, text="Back to start page",
+        explore_data_base_page_button = ttk.Button(self, text="Explore database",
                                                    command=lambda: controller.show_frame(ExploreDataBase))
 
         back_to_start_page_button.grid(row=1, column=0)
@@ -302,7 +364,7 @@ class ExploreDataBase(tk.Frame):
 
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
-        self.bind("<<ShowFrame>>", self.on_show_frame)
+        self.bind("<<ShowFrame>>", self.show_database_parameters)
 
         # Declaring the selection variable:
         self.selection = {}
@@ -354,7 +416,7 @@ class ExploreDataBase(tk.Frame):
         unique_value_button.place(rely=0.05, relx=0.02)
         data_value_button.place(rely=0.1, relx=0.02)
 
-    def on_show_frame(self, event):
+    def show_database_parameters(self, event):
 
         """
         This methods presents the different options to search through the database, based on the different columns
@@ -363,9 +425,7 @@ class ExploreDataBase(tk.Frame):
         :return:
         """
 
-        df = event.widget.master.master.database_column
-        # Loading all the headers and so on from the table:
-        columns_list = list(df.columns)
+        columns_list = list(event.widget.master.master.database_column)
 
         # Position defaults:
         x = 0.1
@@ -373,34 +433,46 @@ class ExploreDataBase(tk.Frame):
 
         # Looping through all the headers to show them all as well as the options:
         for headers in columns_list:
-            # Listing the different options from that list:
-            drop_down_options = df[headers].unique()
-            # TODO: Make that nicer, try except isn't the way to go here
-            # Adding the option None in case the user doesn't want to select anything:
-            try:
-                drop_down_options = np.insert(drop_down_options, 0, "None", axis=0)
+            # With sql, searching via index works differently, and we don't need it anyway, so we skip it:
+            if headers == 'index':
+                continue
+            else:
+                # Creating a query to fetch unique values in the specific columns:
+                query = 'SELECT DISTINCT {} FROM {}'.format(headers, event.widget.master.master.sql_table_name)
+                print(query)
+                # Executing the query:
+                cursor = event.widget.master.master.c.execute(query)
+                # Listing the different options from that list:
+                drop_down_options = cursor.fetchall()
+                # Queries on sql database retrieves list of tuples. Therefore, need to convert the unique values to list
+                drop_down_options = [item for t in drop_down_options for item in t]
 
-            except:
+                # TODO: Make that nicer, try except isn't the way to go here
+                # Adding the option None in case the user doesn't want to select anything:
                 try:
-                    drop_down_options = np.insert(drop_down_options, 0, 0, axis=0)
+                    drop_down_options = np.insert(drop_down_options, 0, "None", axis=0)
 
                 except:
-                    print("The data format wasn't recognized")
+                    try:
+                        drop_down_options = np.insert(drop_down_options, 0, 0, axis=0)
 
-            # Creating a stringvar for the value selected in the drop down menu:
-            self.selection[headers] = tk.StringVar(self)
-            self.selection[headers].set(drop_down_options[0])  # default value
-            # Setting the label of the drop down menu:
-            label = ttk.Label(self, text=headers, font=NORM_FONT)
+                    except:
+                        print("The data format wasn't recognized")
 
-            species_menu = ttk.OptionMenu(self, self.selection[headers], *drop_down_options)
-            species_menu.place(relx=x, rely=y)
-            label.place(relx=x - 0.075, rely=y)
-            y = y + 0.05
+                # Creating a stringvar for the value selected in the drop down menu:
+                self.selection[headers] = tk.StringVar(self)
+                self.selection[headers].set(drop_down_options[0])  # default value
+                # Setting the label of the drop down menu:
+                label = ttk.Label(self, text=headers, font=NORM_FONT)
 
-            if y > 0.9:
-                x = 0.25
-                y = 0.28
+                species_menu = ttk.OptionMenu(self, self.selection[headers], *drop_down_options)
+                species_menu.place(relx=x, rely=y)
+                label.place(relx=x - 0.075, rely=y)
+                y = y + 0.05
+
+                if y > 0.9:
+                    x = 0.25
+                    y = 0.28
 
     # Setting function to display the data base:
     def show_selection(self, controller):
