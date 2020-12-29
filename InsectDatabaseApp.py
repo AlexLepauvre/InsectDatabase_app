@@ -67,7 +67,7 @@ class InsectDataBaseApp(tk.Tk):
         # Pre allocating:
         self.database_column = []
 
-        for F in (StartPage, CreateDataBasePage, ExpandDataBasePage, LoadDataBasePage, ExploreDataBase):
+        for F in (StartPage, CreateDataBasePage, ExpandDataBasePage, ExploreDataBase, ManualDatabaseCreation):
             # Initialize page:
             frame = F(container, self)
             # Add it to the frames dictionary:
@@ -109,7 +109,7 @@ class InsectDataBaseApp(tk.Tk):
 
         # Checking whether there is a data base:
         if len(databases_list) == 0:  # If there is no existing database, the user must select a file to create one:
-            tk.messagebox.showwarning(title=None, message="There is more than 1 database existing, please select one!")
+            tk.messagebox.showwarning(title=None, message="There is no existing data base, please create one!")
             self.show_frame(CreateDataBasePage)
         elif len(databases_list) == 1:
             self.database_file = databases_list[0]
@@ -150,7 +150,7 @@ class InsectDataBaseApp(tk.Tk):
             # Listing the column names:
             self.database_column = [description[0] for description in self.c.description]
 
-    def create_data_base_from_excel(self):
+    def create_data_base_from_excel(self, frame):
         # Selecting the database to load with browser
         excel_file = filedialog.askopenfilename()
 
@@ -158,16 +158,18 @@ class InsectDataBaseApp(tk.Tk):
 
         # Looping until the correct file format is selected:
         while correct_format != 1:
-            # If the file format isn't supported by read_excel from pandas
-            if not excel_file.endswith(".xls") or excel_file.endswith(".xlsx") \
-                    or excel_file.endswith(".xlsm") or excel_file.endswith(".xlsb") \
-                    or excel_file.endswith(".odf") or excel_file.endswith(".pdt") or excel_file.endswith(".csv"):
+            # Checking if the file format is corrects
+            if excel_file.endswith(".xls") or excel_file.endswith(".xlsx") \
+                    or not excel_file.endswith(".xlsm") or excel_file.endswith(".xlsb") \
+                    or excel_file.endswith(".odf") or excel_file.endswith(".pdt") \
+                    or excel_file.endswith(".csv"):
+                # If the format is correct, while loop can be terminated:
+                correct_format = 1
+            else:
                 # Showing a warning box and asking the user to select a new one:
                 tk.messagebox.showwarning(title=None,
                                           message="This file format isn't accepted, please selected another file!")
                 excel_file = filedialog.askopenfilename()
-            else: # If the format is correct, while loop can be terminated:
-                correct_format = 1
 
         # Loading the excel file
         if excel_file.endswith(".csv"):
@@ -192,7 +194,7 @@ class InsectDataBaseApp(tk.Tk):
         excel_dataframe.columns = excel_dataframe.columns.str.replace('&', 'AND')
 
         # Creating the name of the data base:
-        self.database_file = "Insects_database.db"
+        self.database_file = frame.database_name_entry.get() + ".db"
 
         # Creating the name of the table in the database:
         self.sql_table_name = "Insects"
@@ -201,7 +203,7 @@ class InsectDataBaseApp(tk.Tk):
         cnx = sqlite3.connect(self.database_file)
 
         # Storing the excel file as a database:
-        excel_dataframe.to_sql(name=self.sql_table_name, con=cnx)
+        excel_dataframe.to_sql(name=self.sql_table_name, con=cnx, index=False)
 
         # Connecting to the database:
         self.conn = sqlite3.connect(self.database_file)
@@ -216,33 +218,124 @@ class InsectDataBaseApp(tk.Tk):
         # Fetch all:
         self.database_column = [description[0] for description in self.c.description]
 
-    def fetch_unique(self):
-        """
-        This function fetches the unique columns:
-        :return:
-        """
+    def expand_data_base_from_excel(self):
+        # Selecting the database to load with browser
+        excel_file = filedialog.askopenfilename()
 
-        # Creating the query of the table name:
+        # Loading the excel file
+        if excel_file.endswith(".csv"):
+            excel_dataframe = pd.read_csv(excel_file, sep=',')
+        else:
+            excel_dataframe = pd.read_excel(excel_file, engine='openpyxl')
+
+        # Converting all the strings to lower case to avoid non-consistency issues:
+        for column in excel_dataframe:
+            # Try and except statement in case of format issues:
+            try:
+                excel_dataframe[column] = excel_dataframe[column].str.lower()
+            except:
+                print("This column cannot be converted to lower case")
+
+        # Removing the spaces in the column names by underscores:
+        excel_dataframe.columns = excel_dataframe.columns.str.replace(' ', '_')
+        # Replacing all the potential weird characters in column names by underscores:
+        excel_dataframe.columns = excel_dataframe.columns.str.replace('.', '_')
+        excel_dataframe.columns = excel_dataframe.columns.str.replace(':', '_')
+        excel_dataframe.columns = excel_dataframe.columns.str.replace('-', '_')
+        excel_dataframe.columns = excel_dataframe.columns.str.replace('&', 'AND')
+
+        # Making sure that the column match:
+        # First making sure there are the same number of entries
+
+        if len(excel_dataframe.columns) == len(self.database_column):
+            # Sorting the columns to make sure they are comparable:
+            orderedExcelCol = list(excel_dataframe.columns)
+            orderedDBHeaders = list(self.database_column)
+            orderedExcelCol.sort()
+            orderedDBHeaders.sort()
+            ctr = 0
+            for columns in orderedExcelCol:
+                if columns != orderedDBHeaders[ctr]:
+                    tk.messagebox.showerror(title=None,
+                                            message="The column names in your table differs from he database. \nThese data cannot be appended!!")
+                else:
+                    ctr = ctr + 1
+            # Setting the question marks for the query:
+            q_marks = ""
+            for i in range(len(self.database_column)-1):
+                q_marks += "?"
+                if i < (len(self.database_column)-1) - 1:
+                    q_marks +=","
+
+            # Creating the query:
+            query = 'INSERT OR REPLACE INTO {} ({}) VALUES({})'.format(self.sql_table_name,
+                                                                     ", ".join(self.database_column[1:]),
+                                                                     q_marks)
+            self.conn.executemany(query, excel_dataframe.to_records(index=False))
+            self.conn.commit()
+
+        else:
+            tk.messagebox.showerror(title=None,
+                                    message="The number of columns of the table differ from the one in the database. \n These data cannot be appended!!")
+
+    def create_data_base_manually(self, frame):
+
+        self.sql_table_name = "Insects"
+
+        # Setting the connection:
+        self.database_file = frame.database_name_entry.get() + ".db"
+        self.conn = sqlite3.connect(self.database_file)
+        self.c = self.conn.cursor()
+
+        # Creating the database:
+        self.c.execute("CREATE TABLE IF NOT EXISTS Insects(Ordre TEXT, G_Famille TEXT, Famille TEXT, Genre TEXT, " \
+                       "Sous_genre TEXT, Espece TEXT, Sous_espece TEXT, Male TEXT, Female TEXT, Date TEXT, " \
+                       "Capture_location TEXT, Region TEXT, Pays TEXT, Continent TEXT, Leg TEXT, Auteur TEXT, " \
+                       "Ref TEXT UNIQUE, Rangement TEXT, Boite TEXT)")
+
+        data = []
+        # Getting all the entered values:
+        for entry in frame.entries:
+            data.append(frame.entries[entry].get())
+
+        # print(data)
+
+        # Adding the value to the database:
+        self.c.execute("INSERT INTO Insects VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", data)
+
+        # Commiting the values to the database:
+        self.conn.commit()
+
+        # Getting the column names from the database directly
+        # Creating the query:
         query = 'SELECT * FROM {}'.format(self.sql_table_name)
 
-        # Connecting to the
-        cursor = self.c.execute(query)
+        # Executing query to get all the column names
+        self.c.execute(query)
 
-        # Listing all the columns:
-        column_names = [description[0] for description in cursor.description]
+        # Listing the column names:
+        self.database_column = [description[0] for description in self.c.description]
 
-        #
-        unique = {}
+    def add_insect(self, frame):
 
-        for columns in column_names:
-            if columns == 'index':
-                continue
+        data = []
+        query = 'INSERT OR REPLACE INTO Insects VALUES('
+        ctr = 0
+        # Getting all the entered values:
+        for entry in frame.entries:
+            data.append(frame.entries[entry].get())
+            query += '?'
+            if ctr == len(frame.entries)-1:
+                query += ')'
             else:
-                query = 'SELECT DISTINCT {} FROM {}'.format(columns, self.sql_table_name)
-                cursor = self.c.execute(query)
-                unique[columns] = cursor.fetchall()
+                query += ','
+                ctr = ctr + 1
 
-        print(unique)
+        # Adding the value to the database:
+        self.c.execute(query, data)
+
+        # Commit the values to the database:
+        self.conn.commit()
 
 
 class StartPage(tk.Frame):
@@ -262,8 +355,8 @@ class StartPage(tk.Frame):
         # Creating the buttons:
         create_database_button = ttk.Button(self, text="Create new database",
                                             command=lambda: controller.show_frame(CreateDataBasePage))
-        load_database_button = ttk.Button(self, text="Load existing database",
-                                          command=lambda: controller.show_frame(LoadDataBasePage))
+        load_database_button = ttk.Button(self, text="Explore database",
+                                          command=lambda: controller.show_frame(ExploreDataBase))
         expand_database_button = ttk.Button(self, text="Expand database",
                                             command=lambda: controller.show_frame(ExpandDataBasePage))
         create_database_button.grid(row=1, column=0)
@@ -284,55 +377,95 @@ class CreateDataBasePage(tk.Frame):
         tk.Frame.__init__(self, parent)
 
         # Setting start page label:
-        label = ttk.Label(self, text="Create database", font=LARGE_FONT)
+        label = ttk.Label(self, text="Create database", font=NORM_FONT)
         label.grid(row=0, column=0)
 
         # Creating the buttons:
         back_to_start_page_button = ttk.Button(self, text="Back to start page",
                                                command=lambda: controller.show_frame(StartPage))
         create_data_base_page_button = ttk.Button(self, text="Create database from excel",
-                                                  command=lambda: controller.create_data_base())
+                                                  command=lambda: controller.create_data_base_from_excel())
+        manual_create_data_base_page_button = ttk.Button(self, text="Create database manually",
+                                                         command=lambda: controller.show_frame(ManualDatabaseCreation))
         explore_data_base_page_button = ttk.Button(self, text="Explore database",
                                                    command=lambda: controller.show_frame(ExploreDataBase))
 
-        back_to_start_page_button.grid(row=1, column=0)
-        create_data_base_page_button.grid(row=2, column=0)
-        explore_data_base_page_button.grid(row=3, column=0)
-
-        # Adding background image:
-        image = Image.open('insect_bg.png')
-        photo = ImageTk.PhotoImage(image.resize((600, 500), Image.ANTIALIAS))
-        label = tk.Label(self, image=photo)
-        label.image = photo
-        label.grid(row=0, column=1, rowspan=4)
+        # Placing the buttons:
+        back_to_start_page_button.place(rely=0.9, relx=0.02)
+        create_data_base_page_button.place(rely=0.1, relx=0.02)
+        explore_data_base_page_button.place(rely=0.85, relx=0.02)
+        manual_create_data_base_page_button.place(rely=0.15, relx=0.02)
 
 
-class LoadDataBasePage(tk.Frame):
+class ManualDatabaseCreation(tk.Frame):
 
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
 
+        # In order to be able to edit the entry widgets, need to set focus on the window:
+        self.bind("<<ShowFrame>>", self.force_focus)
+
+        self.entries = {}
         # Setting start page label:
-        label = ttk.Label(self, text="Create database", font=LARGE_FONT)
+        label = ttk.Label(self, text="Create database", font=NORM_FONT)
         label.grid(row=0, column=0)
 
+        # Creating the buttons:
         back_to_start_page_button = ttk.Button(self, text="Back to start page",
                                                command=lambda: controller.show_frame(StartPage))
-        select_data_base_button = ttk.Button(self, text="Select data base",
-                                             command=lambda: controller.load_data_base())
-        explore_data_base_page_button = ttk.Button(self, text="Explore database",
-                                                   command=lambda: controller.show_frame(ExploreDataBase))
+        back_to_previous_page_button = ttk.Button(self, text="Back to previous page",
+                                                  command=lambda: controller.show_frame(CreateDataBasePage))
+        create_data_base_page_button = ttk.Button(self, text="Create database from excel",
+                                                  command=lambda: controller.create_data_base_from_excel(self))
+        explore_database_button = ttk.Button(self, text="Explore database",
+                                             command=lambda: controller.show_frame(ExploreDataBase))
+        save_to_database_button = ttk.Button(self, text="Add insect",
+                                             command=lambda: controller.create_data_base_manually(self))
 
-        back_to_start_page_button.grid(row=1, column=0)
-        select_data_base_button.grid(row=2, column=0)
-        explore_data_base_page_button.grid(row=3, column=0)
+        # Setting an entry for the user to specify the name of the data base:
+        self.database_name_entry = ttk.Entry(self)
+        database_name_label = ttk.Label(self, text="Database_name", font=NORM_FONT)
 
-        # Adding background image:
-        image = Image.open('insect_bg.png')
-        photo = ImageTk.PhotoImage(image.resize((600, 500), Image.ANTIALIAS))
-        label = tk.Label(self, image=photo)
-        label.image = photo
-        label.grid(row=0, column=1, rowspan=4)
+        # Placing the buttons:
+        back_to_start_page_button.place(rely=0.9, relx=0.02)
+        back_to_previous_page_button.place(rely=0.85, relx=0.02)
+        explore_database_button.place(rely=0.8, relx=0.02)
+        save_to_database_button.place(rely=0.2, relx=0.02)
+        self.database_name_entry.place(rely=0.1, relx=0.15)
+        create_data_base_page_button.place(rely=0.15, relx=0.02)
+        database_name_label.place(rely=0.1, relx=0.02)
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Adding the options to create a database from scratch:
+        database_param_frame = tk.LabelFrame(self, text="Manual database creation:")
+        database_param_frame.place(relheight=0.85, relwidth=0.7, relx=0.28, rely=0.1)
+
+        # Adding all the options in the frame:
+        # Setting the different entries:
+        db_entries = ['Order', 'G_Famille', 'Famille', 'Genre', 'Sous_genre', 'Espece', 'Sous_espece', 'Male',
+                      'Female',
+                      'Date', 'Capture_location', 'Region', 'Pays', 'Continent', 'Leg', 'Auteur', 'Ref',
+                      'Rangement',
+                      'Boite']
+
+        # Setting the initial position:
+        x = 0.285
+        y = 0.2
+
+        # Creating one text box per entry of the database:
+        for entry in db_entries:
+            var = tk.StringVar(value=entry)
+            label = ttk.Label(self, text=entry + ": ", font=NORM_FONT)
+            self.entries[entry] = tk.Entry(self, textvariable=var)
+            if y > 0.8:
+                x = 0.6425
+                y = 0.2
+            label.place(relx=x, rely=y)
+            self.entries[entry].place(relx=x + 0.1, rely=y)
+            y = y + 0.075
+
+    def force_focus(self, event):
+        self.focus_force()
 
 
 class ExpandDataBasePage(tk.Frame):
@@ -340,24 +473,55 @@ class ExpandDataBasePage(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
 
+        self.bind("<<ShowFrame>>", self.display_entries)
+
+        self.entries = {}
+
         # Setting start page label:
         label = ttk.Label(self, text="Create database", font=LARGE_FONT)
         label.grid(row=0, column=0)
 
         back_to_start_page_button = ttk.Button(self, text="Back to start page",
                                                command=lambda: controller.show_frame(StartPage))
+        expand_from_excel_button = ttk.Button(self, text="Expand from excel",
+                                               command=lambda: controller.expand_data_base_from_excel())
         explore_data_base_page_button = ttk.Button(self, text="Explore database",
                                                    command=lambda: controller.show_frame(ExploreDataBase))
+        save_to_database_button = ttk.Button(self, text="Add insect",
+                                             command=lambda: controller.add_insect(self))
 
         back_to_start_page_button.grid(row=1, column=0)
         explore_data_base_page_button.grid(row=2, column=0)
+        expand_from_excel_button.grid(row=3, column=0)
+        save_to_database_button.grid(row=4, column=0)
 
-        # Adding background image:
-        image = Image.open('insect_bg.png')
-        photo = ImageTk.PhotoImage(image.resize((600, 500), Image.ANTIALIAS))
-        label = tk.Label(self, image=photo)
-        label.image = photo
-        label.grid(row=0, column=1, rowspan=4)
+
+        # Adding the options to create a database from scratch:
+        database_param_frame = tk.LabelFrame(self, text="Manual database creation:")
+        database_param_frame.place(relheight=0.85, relwidth=0.7, relx=0.28, rely=0.1)
+
+
+    def display_entries(self, event):
+        self.focus_force()
+
+        db_entries = event.widget.master.master.database_column
+
+        # Setting the initial position:
+        x = 0.285
+        y = 0.2
+
+        # Creating one text box per entry of the database:
+        for entry in db_entries:
+            var = tk.StringVar(value=entry)
+            label = ttk.Label(self, text=entry + ": ", font=NORM_FONT)
+            self.entries[entry] = tk.Entry(self, textvariable=var)
+            if y > 0.8:
+                x = 0.6425
+                y = 0.2
+            label.place(relx=x, rely=y)
+            self.entries[entry].place(relx=x + 0.1, rely=y)
+            y = y + 0.075
+
 
 
 class ExploreDataBase(tk.Frame):
@@ -481,28 +645,28 @@ class ExploreDataBase(tk.Frame):
         self.table_frame.delete(*self.table_frame.get_children())
 
         # Initiating the query parameter:
-        query_param = ""
+        query_param = ''
 
         # Fetching all the retrieved values from the drop down menu to create the query:
         for entries in self.selection:
             # Not taking into account the options that weren't selected:
-            if not self.selection[entries].get() == "None":
-                if not self.selection[entries].get() == '0.0':
-                    if not self.selection[entries].get() == '0':
-                        # If there was already an option added, adding AND in between the two queries
-                        if len(query_param) != 0:
-                            query_param += 'AND '
+            if not self.selection[entries].get() == "None" and not self.selection[entries].get() == "Non" \
+                    and not self.selection[entries].get() == "0.0" and not self.selection[entries].get() == "0":
+                # If there was already an option added, adding AND in between the two queries
+                if len(query_param) != 0:
+                    query_param += 'AND '
+                if len(query_param) == 0:
+                    query_param += 'WHERE '
 
-                        # Expanding the query based on the selected options
-                        query_param += entries
-                        query_param += '='
-                        query_param += "'"
-                        query_param += self.selection[entries].get()
-                        query_param += "'"
-                        query_param += " "
+                # Expanding the query based on the selected options
+                query_param += entries
+                query_param += '='
+                query_param += '"'
+                query_param += self.selection[entries].get()
+                query_param += '" '
 
         # Creating the query based on the retrieved values:
-        query = 'SELECT * FROM {} WHERE {}'.format(controller.sql_table_name, query_param)
+        query = "SELECT * FROM {} {}".format(controller.sql_table_name, query_param)
 
         # Fetch the queried data:
         data = pd.read_sql_query(query, controller.conn)
