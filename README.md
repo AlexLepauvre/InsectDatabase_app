@@ -1,6 +1,17 @@
+<!-- PROJECT LOGO -->
+<br />
+<p align="center">
+  <a href="https://github.com/AlexLepauvre/InsectDatabase_app/blob/main/insect_logo.ico">
+    <img src="https://github.com/AlexLepauvre/InsectDatabase_app/blob/main/insect_logo.ico" alt="Logo" width="80" height="80">
+  </a>
+
 # InsectDatabase_app
 This application main goal is to create standardized databases for insects collectioners, who would like to document and reference the specimens in their collection in an ordered and concise fashion. The information about each insects are maintained in a SQL data base, living in the home directory of the application. The user interface provide with functions enabling the searching and filtering of the data base in the search of specific specimens. The search options are derived from the SQLlite database itself, making the application flexible for different formats. 
 This application has a built in template to initiate the database. Alternatively, the users can select an excel table of their choice that will automatically be converted into an SQLlite database. Note however that these two options are not equivalent, the instantiation of the database using the built in template enables more fine tuning, such as the creation of the reference column as a primary key in the sqlite database, enabling more control. 
+![alt text](https://github.com/AlexLepauvre/InsectDatabase_app/blob/main/Instructions_screenshots/Start%20page.PNG)
+
+# I. Installation guide
+In order to install the application on your computer, you should download the wind
 
 # How to use
 ## First use
