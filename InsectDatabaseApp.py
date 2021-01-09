@@ -3,13 +3,14 @@ from tkinter import filedialog, ttk, messagebox
 import pandas as pd
 import sqlite3
 import os
-import glob
 from PIL import ImageTk, Image
-import numpy as np
 
 LARGE_FONT = ("Verdana", 12)
 NORM_FONT = ("Verdana", 10)
 SMALL_FONT = ("Verdana", 8)
+
+def quit():
+    quit()
 
 
 def popupmsg(message):
@@ -48,7 +49,7 @@ class InsectDataBaseApp(tk.Tk):
 
         # Setting title and icon:
         tk.Tk.wm_title(self, "Insect database app")
-        tk.Tk.iconbitmap(self, default="insect.ico")
+        tk.Tk.iconbitmap(self, default="insect_logo.ico")
         self.geometry('1000x600')
         # Create container to populate:
         container = tk.Frame(self)
@@ -192,7 +193,7 @@ class InsectDataBaseApp(tk.Tk):
         if excel_file.endswith(".csv"):
             excel_dataframe = pd.read_csv(excel_file, sep=',')
         else:
-            excel_dataframe = pd.read_excel(excel_file, engine='openpyxl')
+            excel_dataframe = pd.read_excel(excel_file, engine='openpyxl', sheet_name=None)
 
         # Converting all the strings to lower case to avoid non-consistency issues:
         for column in excel_dataframe:
@@ -632,7 +633,7 @@ class ExploreDataBase(tk.Frame):
         # Setting the widget for the database view:
 
         # Frame for TreeView
-        frame1 = tk.LabelFrame(self, text="Excel Data")
+        frame1 = tk.LabelFrame(self, text="Database selection")
         frame1.place(relheight=0.95, relwidth=0.6, relx=0.4)
 
         # Placing the frame:
