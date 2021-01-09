@@ -5,12 +5,15 @@
     <img src="https://github.com/AlexLepauvre/InsectDatabase_app/blob/main/insect_logo.ico" alt="Logo" width="80" height="80">
   </a>
 
+# Author:
+[Alex Lepauvre](https://github.com/AlexLepauvre)
+
 # InsectDatabase_app
 This application main goal is to create standardized databases for insects collectioners, who would like to document and reference the specimens in their collection in an ordered and concise fashion. The information about each insects are maintained in a SQL data base, living in the home directory of the application. The user interface provide with functions enabling the searching and filtering of the data base in the search of specific specimens. The search options are derived from the SQLlite database itself, making the application flexible for different formats. 
 ![alt text](https://github.com/AlexLepauvre/InsectDatabase_app/blob/main/Instructions_screenshots/Start%20page.PNG)
 
 # I. Installation guide
-In order to install the application on your computer, you should download the windows installer found here [here](https://github.com/AlexLepauvre/InsectDatabase_app/blob/main/dist/Les%20Robetes-0.1-amd64.msi). You should then follow the instructions and note the path to where the app gets installed. I still haven't figured out how to make ask for a shortcut on desktop. So go to whereever you installed the app and click on the file called InsectDatabaseApp to start the app.
+In order to install the application on your computer, you should download the windows installer found [here](https://github.com/AlexLepauvre/InsectDatabase_app/blob/main/dist/Les%20Robetes-0.1-amd64.msi). You should then follow the instructions and note the path to where the app gets installed. I still haven't figured out how to make ask for a shortcut on desktop. So go to whereever you installed the app and click on the file called InsectDatabaseApp to start the app.
 
 # II. How to use
 
